@@ -1,0 +1,57 @@
+# Thin caller — synced from portolan-sdi/portolan-ops (ci/python-package/).
+# CI logic lives in ops' reusable-python-ci.yml; change it there.
+#
+# The family expects these dev dependencies in pyproject.toml:
+# pytest, pytest-cov, pytest-xdist, diff-cover, mypy, vulture, xenon,
+# bandit, pip-audit. It also expects the synced .pre-commit-config.yaml,
+# scripts/pip_audit_ignores.py, and .pip-audit-ignores.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    # No branch filter. A pull request aimed anywhere else still runs
+    # these checks; without that, a stacked pull request shows green
+    # having run none of them.
+  schedule:
+    # Nightly run catches dependency drift on an idle repo.
+    # Pick a distinct minute per repo so the fleet doesn't fire at once.
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    # v1 is a moving major tag. Compatible changes reach this repo when
+    # ops moves the tag; a breaking change ships as v2 and arrives as a
+    # Dependabot PR here (norms/ci.md, "Releasing a CI change").
+    uses: portolan-sdi/portolan-ops/.github/workflows/reusable-python-ci.yml@v1
+    permissions:
+      contents: read
+      # Codecov OIDC upload in the reusable test job.
+      id-token: write
+    with:
+      # Flat layout. tests/in_qgis needs PyQGIS and runs in qgis.yml.
+      coverage-target: portolan_registry_qgis
+      bandit-target: portolan_registry_qgis
+    # Adjust inputs per repo if defaults don't fit:
+    # with:
+    #   sync-args: "--extra data"
+    #   # Schedule, push, and dispatch run these; the default is all
+    #   # three. A pure-stdlib repo can narrow it to ubuntu alone.
+    #   os: '["ubuntu"]'
+    #   # Pull requests run this, ubuntu alone by default. Widen it where
+    #   # review-time platform coverage is worth the twelve cells.
+    #   os-pull-request: '["ubuntu", "macos", "windows"]'
+    #   # Flat layout: point both at the package dir.
+    #   coverage-target: my_package
+    #   bandit-target: my_package
+    #   # If python-versions drops 3.13, move the coverage upload:
+    #   coverage-python: "3.12"

@@ -1,0 +1,312 @@
+[project]
+name = "portolan-registry-qgis"
+version = "0.1.0"
+description = "QGIS plugin to browse, load, and download data from the Portolan registry"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [
+    { name = "Nissim Lebovits", email = "nlebovits@pm.me" },
+]
+keywords = ["qgis", "stac", "portolan", "cloud-native", "geospatial"]
+# The plugin runs inside QGIS, which supplies qgis, PyQt, and osgeo. None of
+# them install from PyPI, so the plugin declares no runtime dependencies. The
+# stdlib-only core (portolan_registry_qgis.core) is what the uv environment
+# tests; tests/qgis runs inside a QGIS container (.github/workflows/qgis.yml).
+dependencies = []
+
+[project.urls]
+"Homepage" = "https://github.com/portolan-sdi/portolan-registry-qgis"
+"Bug Tracker" = "https://github.com/portolan-sdi/portolan-registry-qgis/issues"
+"Source" = "https://github.com/portolan-sdi/portolan-registry-qgis"
+
+[dependency-groups]
+dev = [
+    "bandit>=1.9",
+    "codespell>=2.4.3",
+    "commitizen>=4.16",
+    "deptry>=0.25",
+    "diff-cover>=10.4",
+    "duckdb>=1.5.0",
+    "import-linter>=2.13",
+    "mypy>=1.19.1",
+    "pip>=26.1",
+    "pip-audit>=2.10",
+    "pmtiles>=3.4",
+    "pre-commit>=4.6",
+    "pytest>=9.0.3",
+    "pytest-cov>=7",
+    "pytest-timeout>=2.3",
+    "pytest-xdist>=3.8",
+    "radon>=6.0.1",
+    "ruff>=0.16",
+    "vulture>=2.16",
+    "xenon>=0.9.3",
+]
+docs = [
+    # Pinned exactly, as in portolan-cli: zensical is alpha with a compiled
+    # core, so a floor constraint is not a constraint. Dependabot offers
+    # reviewable bumps.
+    "zensical==0.0.67",
+    "pymdown-extensions>=11.0",
+]
+
+[tool.uv]
+# A QGIS plugin ships as a zip of the package directory
+# (scripts/package_plugin.py), never as a wheel.
+package = false
+
+# ---------- commitizen ----------
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.1.0"
+# metadata.txt is what QGIS and plugins.qgis.org read. It must move with the
+# project version, or the plugin manager offers a release under the old number.
+version_files = [
+    "pyproject.toml:^version",
+    "portolan_registry_qgis/metadata.txt:^version",
+]
+tag_format = "v$version"
+update_changelog_on_bump = true
+# The project is pre-1.0. A breaking change bumps the minor number, so the
+# major number stays at zero until the interface settles.
+major_version_zero = true
+pre_bump_hooks = ["uv lock"]
+
+# ---------- testing ----------
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "--tb=short --strict-markers -m 'not network'"
+markers = [
+    "network: Reads the live Portolan registry and catalogs. Run with -m network.",
+    "qgis: Needs PyQGIS. Skipped where qgis cannot be imported.",
+]
+
+[tool.coverage.run]
+source = ["portolan_registry_qgis"]
+branch = true
+# These modules import qgis, PyQt, or osgeo, which the uv environment cannot
+# install. tests/qgis exercises them inside the QGIS container instead, where
+# the diff-cover gate does not run.
+omit = [
+    "portolan_registry_qgis/__init__.py",
+    "portolan_registry_qgis/plugin.py",
+    "portolan_registry_qgis/gui/*",
+    "portolan_registry_qgis/qgis_io/*",
+]
+
+[tool.coverage.report]
+fail_under = 0
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+
+# ---------- linting & formatting ----------
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+# .claude/ holds tooling that portolan-ops syncs into every repo. This repo does
+# not own those files, and a sync run overwrites any fix made here. Raise a rule
+# change in portolan-ops instead.
+extend-exclude = [".claude"]
+
+[tool.ruff.lint]
+# Rule set follows portolan-cli, the family reference for tool config.
+select = [
+    "E", # pycodestyle errors
+    "W", # pycodestyle warnings
+    "F", # pyflakes
+    "I", # isort
+    "B", # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+    "A", # flake8-builtins
+    "ARG", # flake8-unused-arguments
+    "C901", # mccabe complexity
+    "D", # pydocstyle
+    "DTZ", # flake8-datetimez
+    "ERA", # eradicate - commented-out code
+    "EXE", # flake8-executable
+    "FURB", # refurb
+    "G", # flake8-logging-format
+    "ICN", # flake8-import-conventions
+    "INT", # flake8-gettext
+    "ISC", # flake8-implicit-str-concat
+    "LOG", # flake8-logging
+    "N", # pep8-naming
+    "PERF", # perflint
+    "PIE", # flake8-pie
+    "PTH", # flake8-use-pathlib
+    "PYI", # flake8-pyi
+    "Q", # flake8-quotes
+    "RET", # flake8-return
+    "RSE", # flake8-raise
+    "S", # flake8-bandit
+    "SIM", # flake8-simplify
+    "SLOT", # flake8-slots
+    "T20", # flake8-print - QGIS output goes through the message bar and log
+    "TC", # flake8-type-checking
+    "YTT", # flake8-2020
+]
+ignore = [
+    "E501", # line too long (handled by formatter)
+    "ISC001", # conflicts with the formatter
+    "D107", # Google style documents constructor arguments in the class docstring
+    "PERF203", # a loop that isolates one item's failure needs try-except inside it
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+# Qt names its overridable methods in camelCase (closeEvent, initGui), and QGIS
+# calls initGui and unload on the plugin object by those names.
+"portolan_registry_qgis/plugin.py" = ["N802"]
+"portolan_registry_qgis/gui/*.py" = ["N802"]
+"portolan_registry_qgis/qgis_io/*.py" = ["N802"]
+"tests/**/*.py" = [
+    "S101", # assert is the point of a test
+    "S108", # /tmp paths in fixtures
+    "D", # test names carry the description; docstrings are optional
+    "ARG", # pytest fixtures are injected and often unused by name
+    "SLF001", # tests may reach into private helpers
+    "T20", # a test may print for diagnostics
+    "PTH123", # open() is fine in a fixture
+    "S310", # a test opens a URL it writes itself
+    "S311", # random builds test data, not a secret
+    "S608", # a test builds a DuckDB query from a literal path
+]
+# FakeIface mirrors QgisInterface, and RangeHandler overrides http.server
+# methods, so both keep their camelCase names.
+"tests/in_qgis/*.py" = ["N802"]
+# Synced from portolan-ops (templates/repo/scripts/). Fix it there.
+"scripts/pip_audit_ignores.py" = ["D103", "T20"]
+"scripts/**/*.py" = [
+    "T20", # scripts are CLIs of their own and print by design
+    "S310", # a script opens an https URL it writes itself
+]
+
+[tool.ruff.lint.flake8-builtins]
+# STAC names asset fields "type" and "format", and a registry entry carries an
+# "id". The dataclass fields keep the specification's names.
+builtins-ignorelist = ["type", "format", "id"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["portolan_registry_qgis"]
+# Every module defers annotation evaluation, which keeps the TC rules safe.
+required-imports = ["from __future__ import annotations"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+# ---------- type checking ----------
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["portolan_registry_qgis", "scripts"]
+exclude = ["^\\.claude/"]
+
+# PyQGIS, PyQt, and the GDAL bindings come with QGIS and are absent from the
+# uv environment, so mypy cannot read them.
+[[tool.mypy.overrides]]
+module = ["qgis.*", "osgeo.*", "PyQt5.*", "PyQt6.*"]
+ignore_missing_imports = true
+
+# Without the PyQGIS stubs every Qt and QGIS base class resolves to Any. The
+# QGIS-facing modules subclass those classes and hand their values on, so the
+# two checks that reject Any there would reject every line.
+[[tool.mypy.overrides]]
+module = [
+    "portolan_registry_qgis",
+    "portolan_registry_qgis.plugin",
+    "portolan_registry_qgis.gui.*",
+    "portolan_registry_qgis.qgis_io.*",
+    "tests.in_qgis.*",
+]
+disallow_subclassing_any = false
+warn_return_any = false
+disallow_untyped_decorators = false
+
+# ---------- spell check ----------
+
+[tool.codespell]
+skip = ".git,uv.lock,.venv,.venv-qgis,.flatpak-site,.mypy_cache,.ruff_cache,.pytest_cache,*.svg,tests/fixtures/*,./tests/fixtures/*"
+# "indirizzi" and "rilasci" are Italian collection names in test fixtures
+# copied from the ANNCSU catalog.
+ignore-words-list = "indirizzi,rilasci"
+
+# ---------- dead code ----------
+
+[tool.vulture]
+min_confidence = 80
+paths = ["portolan_registry_qgis", "tests", "scripts"]
+sort_by_size = true
+
+# ---------- security ----------
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]
+
+# ---------- architecture enforcement ----------
+
+[tool.importlinter]
+root_packages = ["portolan_registry_qgis"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+id = "core-is-stdlib-only"
+name = "The core must not import QGIS, Qt, or GDAL"
+type = "forbidden"
+# The core holds the STAC and registry logic. It must stay importable outside
+# QGIS, because the uv test matrix exercises it there.
+source_modules = ["portolan_registry_qgis.core"]
+forbidden_modules = ["qgis", "osgeo", "PyQt5", "PyQt6"]
+
+[[tool.importlinter.contracts]]
+id = "core-below-qgis-layers"
+name = "The core must not import the QGIS-facing layers"
+type = "forbidden"
+source_modules = ["portolan_registry_qgis.core"]
+forbidden_modules = [
+    "portolan_registry_qgis.gui",
+    "portolan_registry_qgis.qgis_io",
+    "portolan_registry_qgis.plugin",
+]
+
+[[tool.importlinter.contracts]]
+id = "io-below-gui"
+name = "QGIS I/O must not import the GUI"
+type = "forbidden"
+source_modules = ["portolan_registry_qgis.qgis_io"]
+forbidden_modules = ["portolan_registry_qgis.gui"]
+
+# ---------- dependency checking ----------
+
+[tool.deptry]
+known_first_party = ["portolan_registry_qgis"]
+extend_exclude = [".claude", "scripts"]
+
+[tool.deptry.per_rule_ignores]
+# QGIS supplies these at runtime. They are not installable from PyPI.
+DEP001 = ["qgis", "osgeo", "PyQt5", "PyQt6"]
+# The user installs DuckDB into QGIS's Python, and the plugin imports it
+# lazily (core/parquet_query.py). The dev group carries it for the tests.
+DEP004 = ["duckdb"]

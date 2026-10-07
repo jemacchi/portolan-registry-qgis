@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+mutants/
+
+# Local QGIS test environments (see docs/development.md)
+.venv-qgis/
+.flatpak-site/
+
+# Builds
+/site/
+/dist/
+*.zip
+
+# Claude Code worktrees
+.claude/worktrees/

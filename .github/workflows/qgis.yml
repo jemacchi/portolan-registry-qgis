@@ -1,0 +1,54 @@
+# Runs tests/in_qgis inside the official QGIS images. The uv matrix in ci.yml
+# cannot import qgis, so the plugin's QGIS, Qt, and network code is tested
+# here: once on Qt5 (QGIS 3.44 LTR) and once on Qt6 (QGIS 4.2).
+name: QGIS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "41 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: QGIS ${{ matrix.qgis.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        qgis:
+          - name: "3.44 (Qt5)"
+            # qgis/qgis:3.44, digest as of 2026-09-27
+            image: qgis/qgis@sha256:bacafbaf899bb2af5d99dd8a138e0438733aac252ddd5f29d089ad34641bb059
+          - name: "4.2 (Qt6)"
+            # qgis/qgis:4.2, digest as of 2026-09-27
+            image: qgis/qgis@sha256:8996496c15887a8fae0da05fa38103093ddbf104525bcbd67bf733a914fb1444
+    container:
+      image: ${{ matrix.qgis.image }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install test dependencies
+        # The image's Debian pytest cannot be upgraded in place. A venv on top
+        # of the system site-packages keeps PyQGIS importable. Versions match
+        # uv.lock.
+        run: |
+          python3 -m venv --system-site-packages /tmp/venv
+          /tmp/venv/bin/pip install pytest==9.1.1 pytest-timeout==2.4.0 duckdb==1.5.6
+
+      - name: Run the QGIS tests
+        run: /tmp/venv/bin/python -m pytest tests/in_qgis -p no:cacheprovider --timeout 120

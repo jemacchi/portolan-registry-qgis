@@ -1,0 +1,61 @@
+site_name: Portolan Registry for QGIS
+site_description: Browse, load, and download data from the Portolan registry in QGIS
+site_url: https://portolan-sdi.github.io/portolan-registry-qgis/
+repo_name: portolan-sdi/portolan-registry-qgis
+repo_url: https://github.com/portolan-sdi/portolan-registry-qgis
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  # Zensical builds this site. `classic` keeps the Material 9 markup, so the
+  # `.md-*` selectors in extra.css apply. Same setup as portolan-cli.
+  variant: classic
+  # The header is a solid blue band, so its mark is cream. The favicon sits
+  # on a browser tab, so it is blue. Both come from the portolan-ops brand kit.
+  logo: assets/images/portolan-logomark-fcfcfa.svg
+  favicon: assets/images/portolan-logomark-4163cc.svg
+  # Light mode only. The brand kit carries no dark theme.
+  palette:
+    scheme: default
+    primary: custom
+    accent: custom
+  font:
+    text: Hanken Grotesk
+    code: JetBrains Mono
+  features:
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+extra_css:
+  # Order matters. _brand-vars.css declares the tokens that extra.css reads.
+  - assets/stylesheets/_brand-vars.css
+  - assets/stylesheets/extra.css
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.snippets:
+      base_path: .
+      check_paths: true
+  - tables
+  - toc:
+      permalink: true
+
+validation:
+  links:
+    not_found: warn
+    anchors: warn
+
+nav:
+  - Home: index.md
+  - Install: install.md
+  - Use: use.md
+  - Development: development.md
+  - Changelog: changelog.md

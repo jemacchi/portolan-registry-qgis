@@ -1,0 +1,58 @@
+# Publishes the plugin when a GitHub release is published.
+#
+# qgis-plugin-ci packages portolan_registry_qgis/ into a zip, attaches it to
+# the release, and uploads it to plugins.qgis.org.
+#
+# One-time setup:
+#   1. Create a deployment environment named "plugins-qgis-org".
+#   2. Add the secret QGIS_PLUGIN_TOKEN to it, a token from
+#      https://plugins.qgis.org for an account that owns the plugin.
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: plugins-qgis-org
+    permissions:
+      contents: write # Attach the zip to the release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          # A publish job must not restore a cache that another run wrote.
+          enable-cache: false
+
+      - name: Check that the tag matches metadata.txt
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="${TAG#v}"
+          declared=$(sed -n 's/^version=//p' portolan_registry_qgis/metadata.txt)
+          if [ "$version" != "$declared" ]; then
+            echo "::error::Tag $TAG does not match metadata.txt version $declared."
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Package, attach, and publish
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          GH_TOKEN: ${{ github.token }}
+          QGIS_TOKEN: ${{ secrets.QGIS_PLUGIN_TOKEN }}
+        run: >-
+          uvx qgis-plugin-ci@2.10.0 release "$VERSION"
+          --release-tag "$TAG"
+          --github-token "$GH_TOKEN"
+          --qgis-token "$QGIS_TOKEN"
