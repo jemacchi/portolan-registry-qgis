@@ -25,6 +25,8 @@ from qgis.core import (
     QgsVectorTileLayer,
 )
 
+from portolan_registry_qgis.core.diagnose import open_failure
+from portolan_registry_qgis.core.parquet_query import is_flatpak
 from portolan_registry_qgis.qgis_io.tileserver import Archive, TileServer, open_archive
 
 if TYPE_CHECKING:
@@ -262,7 +264,7 @@ def asset_layer(asset: Asset, name: str | None = None) -> QgsMapLayer:
     else:
         raise LayerError(f"{asset.label} has no format QGIS can open in place")
     if not layer.isValid():
-        raise LayerError(f"QGIS could not open {asset.href}")
+        raise LayerError(open_failure(asset.href, layer.error().summary(), is_flatpak()))
     return layer
 
 

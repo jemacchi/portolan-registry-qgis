@@ -44,3 +44,7 @@ subprocess.check_call([sys.executable, "-m", "pip", "install", "duckdb>=1.5.0"])
 ```
 
 DuckDB downloads its `httpfs` and `spatial` extensions on first use.
+
+## Raster codecs
+
+GDAL in the Flatpak build of QGIS lacks the LERC codec. COGs compressed with `LERC`, `LERC_DEFLATE`, or `LERC_ZSTD`, such as the GHSL population grids, fail to open there, and the plugin reports the missing codec. To check a file, run `gdalinfo` with a GDAL that has LERC and read `COMPRESSION` under the image structure metadata. Open such files in a QGIS from your Linux distribution, conda-forge, or the QGIS installers.
