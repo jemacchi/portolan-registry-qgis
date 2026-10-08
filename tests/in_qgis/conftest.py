@@ -145,6 +145,24 @@ def _parquet(path: Path) -> None:
     con.close()
 
 
+def _images(root: Path, collection: Path) -> None:
+    """Write a logo, a Lucide-style icon drawn in currentColor, and a thumbnail."""
+    from qgis.PyQt.QtGui import QColor, QImage
+
+    for path, size, color in (
+        (root / "logo.png", (120, 40), "#2f7d63"),
+        (collection / "thumbnail.png", (320, 200), "#4163cc"),
+    ):
+        image = QImage(*size, QImage.Format.Format_ARGB32)
+        image.fill(QColor(color))
+        assert image.save(str(path))
+    (root / "leaf.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" '
+        'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+        '<circle cx="12" cy="12" r="9"/></svg>'
+    )
+
+
 def _multihash(path: Path) -> str:
     return "1220" + hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -173,6 +191,7 @@ def _build(root: Path) -> dict:
     )
     _raster(collection / "relief.tif")
     _parquet(root / "points.parquet")
+    _images(root, collection)
     style = {
         "version": 8,
         "name": "Points in red",
@@ -206,6 +225,9 @@ def _build(root: Path) -> dict:
             ["style", "default"],
         ),
     }
+    assets["thumbnail"] = _asset(
+        collection / "thumbnail.png", "./thumbnail.png", "image/png", ["thumbnail"]
+    )
     assets["data"] = _asset(
         root / "points.parquet", "../points.parquet", "application/vnd.apache.parquet", ["data"]
     )
@@ -224,6 +246,7 @@ def _build(root: Path) -> dict:
                 },
                 "links": [
                     {"rel": "root", "href": "../catalog.json"},
+                    {"rel": "icon", "href": "../leaf.svg", "type": "image/svg+xml"},
                     {
                         "rel": "pmtiles",
                         "href": "../points.pmtiles",
@@ -280,6 +303,9 @@ def catalog(tmp_path_factory):
                 "portolan_registry:id": "test",
                 "portolan_registry:status": "valid",
                 "portolan_registry:collection_count": 1,
+                "portolan_registry:total_size_bytes": 123456,
+                "portolan_registry:licenses": {"CC-BY-4.0": 1},
+                "portolan_registry:logo": {"href": f"{base}/logo.png", "type": "image/png"},
             }
         ],
     }

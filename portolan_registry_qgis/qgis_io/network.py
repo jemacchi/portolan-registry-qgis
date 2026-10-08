@@ -29,14 +29,18 @@ class NetworkError(OSError):
     """A request failed or returned an HTTP error."""
 
 
-def fetch_bytes(url: str) -> bytes:
+def fetch_bytes(url: str, accept: bytes = _ACCEPT) -> bytes:
     """Return the body at ``url``.
+
+    Args:
+        url: The address to read.
+        accept: The ``Accept`` header. The default asks for JSON documents.
 
     Raises:
         NetworkError: The request failed or the server answered with an error.
     """
     request = QNetworkRequest(QUrl(url))
-    request.setRawHeader(b"Accept", _ACCEPT)
+    request.setRawHeader(b"Accept", accept)
     blocking = QgsBlockingNetworkRequest()
     code = blocking.get(request, forceRefresh=False)
     if code != QgsBlockingNetworkRequest.ErrorCode.NoError:
@@ -102,6 +106,7 @@ def run_task(
     description: str,
     function: Callable[[QgsTask], object],
     on_done: Callable[[object, BaseException | None], None],
+    hidden: bool = False,
 ) -> QgsTask:
     """Run ``function`` in a background task and report back on the main thread.
 
@@ -110,6 +115,8 @@ def run_task(
         function: Called with the task, off the main thread.
         on_done: Called with ``(result, None)`` on success or
             ``(None, error)`` on failure or cancellation.
+        hidden: Keep the task out of the task manager. Use it for small
+            reads the user did not ask for, such as icons.
 
     Returns:
         The task, already queued.
@@ -121,7 +128,10 @@ def run_task(
             exception = NetworkError("Cancelled")
         on_done(None if exception else result, exception)
 
-    task = QgsTask.fromFunction(description, function, on_finished=finished)
+    flags = QgsTask.Flag.CanCancel
+    if hidden:
+        flags = flags | QgsTask.Flag.Hidden | QgsTask.Flag.Silent
+    task = QgsTask.fromFunction(description, function, on_finished=finished, flags=flags)
     _RUNNING.add(task)
     QgsApplication.taskManager().addTask(task)
     return task

@@ -17,6 +17,7 @@ from qgis.PyQt.QtWidgets import QMainWindow, QMessageBox
 import portolan_registry_qgis
 from portolan_registry_qgis.gui import dock as dock_module
 from portolan_registry_qgis.gui.dock import RegistryDock
+from portolan_registry_qgis.gui.widgets import BADGE_ROLE
 from portolan_registry_qgis.plugin import REGISTRY_URL_SETTING
 from portolan_registry_qgis.qgis_io.layers import PMTILES_PROPERTY
 from portolan_registry_qgis.qgis_io.tileserver import TileServer
@@ -82,8 +83,14 @@ def server():
     tiles.stop()
 
 
-def rows(tree):
-    return [tree.topLevelItem(i).text(0) for i in range(tree.topLevelItemCount())]
+def rows(view):
+    if hasattr(view, "topLevelItem"):
+        return [view.topLevelItem(i).text(0) for i in range(view.topLevelItemCount())]
+    return [view.item(i).text() for i in range(view.count())]
+
+
+def shown(dock):
+    return " ".join((dock.title.text(), dock.description.text(), dock.facts.text()))
 
 
 def open_dock(iface, server, catalog):
@@ -92,11 +99,14 @@ def open_dock(iface, server, catalog):
     return dock
 
 
+def open_catalog(dock):
+    dock.catalogs.itemClicked.emit(dock.catalogs.item(0))
+    wait_for(lambda: rows(dock.tree) == ["Test points", "Missing"])
+
+
 def open_collection(dock):
-    dock.catalogs.setCurrentItem(dock.catalogs.topLevelItem(0))
-    root = dock.tree.topLevelItem(0)
-    wait_for(lambda: root.childCount() == 2 and root.child(0).text(0) == "Test points")
-    dock.tree.setCurrentItem(root.child(0))
+    open_catalog(dock)
+    dock.tree.setCurrentItem(dock.tree.topLevelItem(0))
     wait_for(lambda: dock.assets.topLevelItemCount() > 0)
 
 
@@ -118,7 +128,7 @@ def test_registry_lists_and_filters(iface, server, catalog):
 
 def test_unreachable_registry_says_so(iface, server, catalog):
     dock = RegistryDock(iface, server, f"{catalog['base']}/gone.json")
-    wait_for(lambda: rows(dock.catalogs) == ["The Portolan registry is unavailable."])
+    wait_for(lambda: rows(dock.catalogs)[0].startswith("Could not read the Portolan registry"))
     dock.disconnect_canvas()
 
 
@@ -128,16 +138,52 @@ def test_tree_details_and_assets(iface, server, catalog):
     names = rows(dock.assets)
     assert names[0] == "Point tiles"
     assert "geojson" in names
-    assert "Test points" in dock.details.toPlainText()
-    assert "CC-BY-4.0" in dock.details.toPlainText()
+    # Assets QGIS can open come first, and each row carries its format badge.
+    assert names[-2:] == ["style-red", "thumbnail"]
+    badges = {
+        dock.assets.topLevelItem(i).text(0): dock.assets.topLevelItem(i).data(0, BADGE_ROLE)[0]
+        for i in range(len(names))
+    }
+    assert badges["data"] == "GeoParquet"
+    assert badges["relief"] == "COG"
+    assert badges["thumbnail"] == "PNG"
+    assert "Test points" in shown(dock)
+    assert "CC-BY-4.0" in shown(dock)
     assert dock.style.itemText(0) == "style-red"
+    assert not dock.style_row.isHidden()
+    assert not dock.parquet_extent.isHidden()
     assert dock.zoom.isEnabled()
     assert dock.download_all.isEnabled()
     assert not dock.add.isEnabled()
     # The missing collection reports its failure in the details pane.
-    root = dock.tree.topLevelItem(0)
-    dock.tree.setCurrentItem(root.child(1))
-    wait_for(lambda: "Could not read" in dock.details.toPlainText())
+    dock.tree.setCurrentItem(dock.tree.topLevelItem(1))
+    wait_for(lambda: "Could not read" in dock.description.text())
+    dock.disconnect_canvas()
+
+
+def test_pictures_and_navigation(iface, server, catalog):
+    dock = open_dock(iface, server, catalog)
+    open_catalog(dock)
+    assert dock.pages.currentIndex() == 1
+    assert dock.header.title.text() == "Test catalog"
+    assert "1 collection" in dock.header.summary.text()
+    # The registry's logo shows in the header, and the collection's
+    # currentColor icon replaces its kind icon in the tree.
+    wait_for(lambda: not dock.header.logo.isHidden())
+    icon_url = f"{catalog['base']}/leaf.svg"
+    wait_for(lambda: dock.images.get(icon_url) is not None)
+    assert dock.images.get(icon_url).monochrome
+    dock.tree.setCurrentItem(dock.tree.topLevelItem(0))
+    wait_for(lambda: dock.hero.has_picture)
+    # The header brings back the catalog's own details.
+    dock.header.clicked.emit()
+    wait_for(lambda: dock._document is not None and dock._document.kind == "catalog")
+    assert "no files of its own" in dock.no_assets.text()
+    dock.back.click()
+    assert dock.pages.currentIndex() == 0
+    # Opening the same catalog again keeps its tree.
+    dock.catalogs.itemClicked.emit(dock.catalogs.item(0))
+    assert rows(dock.tree) == ["Test points", "Missing"]
     dock.disconnect_canvas()
 
 
@@ -211,9 +257,9 @@ def test_download_all(iface, server, catalog, tmp_path, monkeypatch):
     monkeypatch.setattr(dock_module.QMessageBox, "question", answer)
     dock = open_dock(iface, server, catalog)
     open_collection(dock)
-    dock.tree.setCurrentItem(dock.tree.topLevelItem(0))
+    dock.header.clicked.emit()
     wait_for(lambda: dock._document is not None and dock._document.kind == "catalog")
-    dock.download_all.click()
+    dock.download_all.trigger()
     wait_for(lambda: dock._job is None and asked and not dock.cancel.isVisible(), timeout=60)
     assert "could not be read" in asked[0]
     assert (tmp_path / "catalog.json").is_file()
@@ -250,3 +296,21 @@ def test_plugin_reconnects_saved_tiles(iface, catalog):
     wait_for(lambda: plugin.server.serves(stale.source()))
     assert stale.isValid()
     plugin.unload()
+
+
+def test_lists_show_one_page_at_a_time(iface, server, catalog, monkeypatch):
+    monkeypatch.setattr(dock_module, "NODE_PAGE", 1)
+    monkeypatch.setattr(dock_module, "CATALOG_PAGE", 2)
+    dock = open_dock(iface, server, catalog)
+    dock.catalogs.itemClicked.emit(dock.catalogs.item(0))
+    wait_for(lambda: rows(dock.tree) == ["Test points", "Show 1 more of 1"])
+    dock.tree.itemClicked.emit(dock.tree.topLevelItem(1), 0)
+    assert rows(dock.tree) == ["Test points", "Missing"]
+    # Five copies of the one registered catalog fill two pages and a half.
+    dock._entries = dock._entries * 5
+    dock._show_catalogs()
+    assert rows(dock.catalogs)[2] == "Show 2 more of 3"
+    dock.catalogs.itemClicked.emit(dock.catalogs.item(2))
+    assert rows(dock.catalogs)[2:] == ["Test catalog", "Test catalog", "Show 1 more of 1"]
+    assert dock.shown.text() == "5 catalogs"
+    dock.disconnect_canvas()

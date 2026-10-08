@@ -21,7 +21,17 @@ NodeKind = Literal["catalog", "collection", "item"]
 AssetFormat = Literal["pmtiles", "geojson", "cog", "parquet", "flatgeobuf", "copc"]
 
 _COLLECTION_HREF = re.compile(r"/collection\.json($|[?#])", re.IGNORECASE)
+_IMAGE_HREF = re.compile(r"\.(png|jpe?g|webp|gif|svg)($|[?#])", re.IGNORECASE)
 STYLE_MEDIA_TYPE = "application/vnd.mapbox.style+json"
+
+
+def is_image(href: str, media_type: str | None) -> bool:
+    """Return whether an http(s) href names an image the panel can draw."""
+    if not is_http_url(href):
+        return False
+    if media_type:
+        return media_type.lower().startswith("image/") and "tiff" not in media_type.lower()
+    return bool(_IMAGE_HREF.search(href))
 
 
 @dataclass(frozen=True)
@@ -122,6 +132,27 @@ class Document:
             for asset in self.assets
             if not asset.is_style and not skip.intersection(asset.roles)
         )
+
+    @property
+    def icon(self) -> str | None:
+        """The href of the first ``rel: icon`` link that points to an image."""
+        return next(
+            (
+                link.href
+                for link in self.links
+                if link.rel == "icon" and is_image(link.href, link.type)
+            ),
+            None,
+        )
+
+    @property
+    def thumbnail(self) -> Asset | None:
+        """The first image asset with the ``thumbnail`` role, else one with ``overview``."""
+        for role in ("thumbnail", "overview"):
+            for asset in self.assets:
+                if role in asset.roles and is_image(asset.href, asset.type):
+                    return asset
+        return None
 
 
 class StacError(ValueError):

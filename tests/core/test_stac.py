@@ -18,6 +18,7 @@ from portolan_registry_qgis.core.stac import (
     asset_format,
     collection_bbox,
     horizontal_bbox,
+    is_image,
     links_of,
     read_document,
 )
@@ -262,3 +263,54 @@ def test_asset_label_and_style_detection():
     assert style.label == "s"
     assert thumb.label == "Preview"
     assert document.data_assets == ()
+
+
+def test_icon_and_thumbnail():
+    document = read_document(
+        {
+            "type": "Collection",
+            "id": "c",
+            "links": [
+                {"rel": "icon", "href": "s3://bucket/icon.png"},
+                {"rel": "icon", "href": "../icons/leaf.svg", "type": "image/svg+xml"},
+            ],
+            "assets": {
+                "cog": {"href": "./o.tif", "type": "image/tiff", "roles": ["overview"]},
+                "o": {"href": "./o.jpg", "roles": ["overview"]},
+                "t": {"href": "./t.png", "type": "image/png", "roles": ["thumbnail"]},
+            },
+        },
+        "https://example.com/c/collection.json",
+    )
+    assert document.icon == "https://example.com/icons/leaf.svg"
+    assert document.thumbnail is not None
+    assert document.thumbnail.key == "t"
+
+
+def test_overview_stands_in_for_a_missing_thumbnail():
+    document = read_document(
+        {
+            "type": "Feature",
+            "id": "i",
+            "links": [{"rel": "icon", "href": "./readme.txt"}],
+            "assets": {"o": {"href": "./o.webp?v=2", "roles": ["overview"]}},
+        },
+        "https://example.com/i.json",
+    )
+    assert document.icon is None
+    assert document.thumbnail is not None
+    assert document.thumbnail.key == "o"
+
+
+@pytest.mark.parametrize(
+    ("href", "media", "expected"),
+    [
+        ("https://x/a.png", None, True),
+        ("https://x/a", "image/jpeg", True),
+        ("https://x/a.tif", "image/tiff; application=geotiff", False),
+        ("https://x/a.json", None, False),
+        ("file:///a.png", None, False),
+    ],
+)
+def test_is_image(href, media, expected):
+    assert is_image(href, media) is expected
