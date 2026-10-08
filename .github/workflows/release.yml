@@ -60,5 +60,6 @@ jobs:
         run: >-
           uvx qgis-plugin-ci@2.10.0 release "$VERSION"
           --release-tag "$TAG"
+          --asset-path portolan_registry_qgis/portolan
           --github-token "$GH_TOKEN"
           --qgis-token "$QGIS_TOKEN"
