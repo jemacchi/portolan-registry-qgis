@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- The documented ZIP build creates the plugin directory at the archive root.
+
 ### Added
 
 - A layer that fails to open shows GDAL's reason. A missing codec, such as LERC in the QGIS Flatpak, names the codec and what to do.

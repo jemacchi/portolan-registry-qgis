@@ -6,6 +6,10 @@ The plugin is not in the official QGIS plugin repository yet. Install it from a 
 
 Download the zip from the [releases page](https://github.com/portolan-sdi/portolan-registry-qgis/releases). In QGIS, open **Plugins > Manage and Install Plugins > Install from ZIP** and pick the file.
 
+Use the plugin ZIP attached to a release. Do not use GitHub's **Source code**
+archives. Those archives contain the repository above the plugin directory,
+so QGIS cannot install them.
+
 ## From a clone
 
 Link the package folder into your QGIS profile, then enable **Portolan Registry** in the plugin manager.

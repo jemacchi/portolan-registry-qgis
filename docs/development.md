@@ -10,6 +10,16 @@ uv sync
 uv run pytest
 ```
 
+Build an installable ZIP with the directory layout that QGIS requires:
+
+```bash
+uv run python scripts/package_plugin.py \
+  --output dist/portolan-registry-qgis.zip
+unzip -t dist/portolan-registry-qgis.zip
+```
+
+The archive has one root directory named `portolan_registry_qgis`.
+
 For the QGIS suite, make a virtual environment on the Python that has PyQGIS:
 
 ```bash
