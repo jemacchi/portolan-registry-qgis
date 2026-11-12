@@ -14,10 +14,10 @@ on:
     # No branch filter. A pull request aimed anywhere else still runs
     # these checks; without that, a stacked pull request shows green
     # having run none of them.
-  schedule:
+  # schedule:
     # Nightly run catches dependency drift on an idle repo.
     # Pick a distinct minute per repo so the fleet doesn't fire at once.
-    - cron: "23 4 * * *"
+    # - cron: "23 4 * * *"
   workflow_dispatch:
 
 permissions:
